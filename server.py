@@ -1,44 +1,313 @@
+# from flask import Flask, request, jsonify
+# from flask_cors import CORS
+# import os
+# from anthropic import Anthropic
+# import requests
+
+# print("AI News Assistant Server - Full Version")
+
+# # Get API key
+# ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+
+# if not ANTHROPIC_API_KEY:
+#     print("ERROR: ANTHROPIC_API_KEY not set!")
+#     # For local testing, you can set it here (remove in production)
+#     ANTHROPIC_API_KEY = "your-anthropic-api-key-here"
+#     print("Using placeholder API key - replace with your actual key")
+# else:
+#     print(f"API Key loaded successfully")
+
+# # Initialize Anthropic client
+# client = Anthropic(api_key=ANTHROPIC_API_KEY)
+
+# app = Flask(__name__)
+
+# # Enable CORS for all routes with proper configuration
+# CORS(app, resources={
+#     r"/*": {
+#         "origins": "*",
+#         "methods": ["GET", "POST", "OPTIONS"],
+#         "allow_headers": ["Content-Type", "Accept", "Authorization"]
+#     }
+# })
+
+# @app.after_request
+# def after_request(response):
+#     response.headers.add('Access-Control-Allow-Origin', '*')
+#     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+#     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+#     return response
+
+# def translate_text(text, target_language):
+#     """Translate text using Google Translate API"""
+#     try:
+#         # Google Translate API endpoint
+#         url = "https://translate.googleapis.com/translate_a/single"
+        
+#         # Map language codes for translation with Sorani Kurdish
+#         language_map = {
+#             'ar': 'ar',  # Arabic
+#             'ku': 'ckb', # Sorani Kurdish (Central Kurdish) code
+#             'en': 'en'   # English
+#         }
+        
+#         target_lang_code = language_map.get(target_language, 'en')
+        
+#         params = {
+#             'client': 'gtx',
+#             'sl': 'en',  # source language (always English)
+#             'tl': target_lang_code,  # target language
+#             'dt': 't',
+#             'q': text
+#         }
+        
+#         response = requests.get(url, params=params, timeout=30)
+        
+#         if response.status_code == 200:
+#             data = response.json()
+#             translated_parts = []
+#             for sentence in data[0]:
+#                 if sentence and len(sentence) > 0:
+#                     translated_text = sentence[0] if sentence[0] else ''
+#                     if translated_text:
+#                         translated_parts.append(translated_text)
+            
+#             if translated_parts:
+#                 translated_text = ' '.join(translated_parts)
+#                 print(f"✓ Translation successful to {target_language} ({target_lang_code})")
+                
+#                 # Add RTL mark for Arabic and Kurdish
+#                 if target_language in ['ar', 'ku']:
+#                     translated_text = '\u200F' + translated_text
+                
+#                 return translated_text
+#             else:
+#                 print("✗ Translation returned empty result")
+#                 return None
+#         else:
+#             print(f"✗ Translation API error: {response.status_code}")
+#             return None
+#     except Exception as e:
+#         print(f"✗ Translation error: {e}")
+#         return None
+
+# def get_news_prompt(country, topic):
+#     """Get AI prompt for news generation"""
+    
+#     prompt = f"""You are a professional journalist and news assistant. Generate news about {topic} for {country}.
+
+# IMPORTANT INSTRUCTIONS:
+# 1. Always generate in English first (for quality)
+# 2. Use this exact structure:
+#    HEADLINE: [Clear, factual headline]
+   
+#    SUMMARY: [2-3 sentence summary of main story]
+   
+#    KEY DEVELOPMENTS:
+#    • [Bullet point 1]
+#    • [Bullet point 2]
+#    • [Bullet point 3]
+#    • [Bullet point 4]
+   
+#    CONTEXT: [Relevant background information]
+   
+#    SOURCES: [Mention credible sources if applicable]
+
+# 3. Rules:
+#    - Focus on latest developments (last 24-48 hours)
+#    - Use neutral, factual tone
+#    - No sensationalism or bias
+#    - If specific country info is limited, provide regional context
+#    - Never invent facts or sources
+#    - For political topics, use balanced perspective
+
+# Generate comprehensive news report about {topic} in {country}."""
+
+#     return prompt
+
+# @app.route('/get_news', methods=['POST', 'OPTIONS'])
+# def get_news():
+#     """Handle news requests - Main endpoint"""
+#     if request.method == 'OPTIONS':
+#         # Handle preflight
+#         return jsonify({'status': 'ok'}), 200
+    
+#     try:
+#         # Log request
+#         print("\n" + "="*50)
+#         print("NEW NEWS REQUEST RECEIVED")
+        
+#         data = request.json
+#         if not data:
+#             print("✗ No data provided")
+#             return jsonify({'error': 'No data provided'}), 400
+
+#         country = data.get('country', 'Global')
+#         topic = data.get('topic', 'Breaking News')
+#         original_language = data.get('original_language', 'en')
+#         needs_translation = data.get('needs_translation', False)
+        
+#         print(f"✓ Parameters received:")
+#         print(f"  Country: {country}")
+#         print(f"  Topic: {topic}")
+#         print(f"  Language: {original_language}")
+#         print(f"  Needs translation: {needs_translation}")
+        
+#         # Get news prompt
+#         prompt = get_news_prompt(country, topic)
+#         print(f"✓ Prompt generated ({len(prompt)} chars)")
+        
+#         # Call Anthropic API for news generation
+#         print("⏳ Calling Claude API...")
+#         message = client.messages.create(
+#             model="claude-3-haiku-20240307",
+#             max_tokens=2000,
+#             temperature=0.4,
+#             messages=[
+#                 {
+#                     "role": "user",
+#                     "content": [
+#                         {
+#                             "type": "text",
+#                             "text": prompt
+#                         }
+#                     ]
+#                 }
+#             ]
+#         )
+        
+#         if message.content and len(message.content) > 0:
+#             response_text = message.content[0].text
+#             print(f"✓ Claude response received ({len(response_text)} chars)")
+            
+#             result = {
+#                 'description': response_text,
+#                 'success': True,
+#                 'language': 'en',
+#                 'country': country,
+#                 'topic': topic,
+#                 'translated_description': None,
+#                 'is_rtl': False
+#             }
+            
+#             # Translate if needed
+#             if needs_translation and original_language != 'en':
+#                 print(f"⏳ Translating to {original_language}...")
+#                 translated_text = translate_text(response_text, original_language)
+#                 if translated_text:
+#                     result['translated_description'] = translated_text
+#                     if original_language in ['ar', 'ku']:
+#                         result['is_rtl'] = True
+#                     print(f"✓ Translation completed")
+#                 else:
+#                     print("⚠ Translation failed, returning English")
+            
+#             print(f"✓ Request completed successfully")
+#             print("="*50)
+            
+#             return jsonify(result)
+#         else:
+#             print("✗ No content from Claude API")
+#             return jsonify({'error': 'No news generated by AI'}), 500
+
+#     except Exception as e:
+#         print(f"✗ Error in get_news: {str(e)}")
+#         print("="*50)
+#         return jsonify({
+#             'error': 'Failed to fetch news',
+#             'details': str(e)
+#         }), 500
+
+# @app.route('/test', methods=['GET'])
+# def test_endpoint():
+#     """Test endpoint to check server status"""
+#     return jsonify({
+#         'status': 'running',
+#         'service': 'AI News Assistant',
+#         'version': '1.0',
+#         'endpoints': {
+#             '/get_news': 'POST - Get news by country, topic, language',
+#             '/test': 'GET - Server status'
+#         },
+#         'supported_countries': 10,
+#         'supported_topics': 24,
+#         'supported_languages': 3
+#     })
+
+# @app.route('/', methods=['GET'])
+# def index():
+#     """Root endpoint"""
+#     return jsonify({
+#         'message': 'AI News Assistant API',
+#         'status': 'active',
+#         'usage': 'Send POST requests to /get_news endpoint'
+#     })
+
+# if __name__ == '__main__':
+#     port = int(os.environ.get('PORT', 5000))
+#     print(f"\n{'='*60}")
+#     print("AI NEWS ASSISTANT SERVER")
+#     print(f"{'='*60}")
+#     print(f"Port: {port}")
+#     print(f"Endpoint: http://localhost:{port}/get_news")
+#     print(f"Test: http://localhost:{port}/test")
+#     print(f"{'='*60}")
+#     print("Server starting...")
+#     app.run(host='0.0.0.0', port=port, debug=True)
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
 from anthropic import Anthropic
-import requests  # Add this import for translation
+import requests
 
-print("AnyScan Server with Multi-Category & Multi-Language Support")
+print("🚀 AI News Assistant Server - Railway Edition")
 
-# Get API key
+# Get API key from Railway environment
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
 if not ANTHROPIC_API_KEY:
-    print("ERROR: ANTHROPIC_API_KEY not set!")
+    print("❌ ERROR: ANTHROPIC_API_KEY not set in Railway environment!")
+    print("Please set ANTHROPIC_API_KEY in Railway dashboard")
+    exit(1)
 else:
-    print(f"API Key loaded")
+    print("✅ API Key loaded successfully from Railway environment")
 
 # Initialize Anthropic client
 client = Anthropic(api_key=ANTHROPIC_API_KEY)
 
 app = Flask(__name__)
-CORS(app)
+
+# Enable CORS for all origins - Railway handles this well
+CORS(app, resources={r"/*": {"origins": "*"}})
+
+# Handle OPTIONS preflight requests
+@app.before_request
+def handle_options():
+    if request.method == "OPTIONS":
+        response = jsonify({"status": "ok"})
+        response.headers.add("Access-Control-Allow-Origin", "*")
+        response.headers.add("Access-Control-Allow-Headers", "*")
+        response.headers.add("Access-Control-Allow-Methods", "*")
+        return response
 
 def translate_text(text, target_language):
     """Translate text using Google Translate API"""
     try:
-        # Google Translate API endpoint
         url = "https://translate.googleapis.com/translate_a/single"
         
-        # Map language codes for translation with Sorani Kurdish
         language_map = {
-            'ar': 'ar',  # Arabic
-            'ku': 'ckb', # Sorani Kurdish (Central Kurdish) code
-            'en': 'en'   # English
+            'ar': 'ar',
+            'ku': 'ckb',
+            'en': 'en'
         }
         
         target_lang_code = language_map.get(target_language, 'en')
         
         params = {
             'client': 'gtx',
-            'sl': 'en',  # source language (always English)
-            'tl': target_lang_code,  # target language
+            'sl': 'en',
+            'tl': target_lang_code,
             'dt': 't',
             'q': text
         }
@@ -47,7 +316,6 @@ def translate_text(text, target_language):
         
         if response.status_code == 200:
             data = response.json()
-            # Extract translated text from response
             translated_parts = []
             for sentence in data[0]:
                 if sentence and len(sentence) > 0:
@@ -57,18 +325,12 @@ def translate_text(text, target_language):
             
             if translated_parts:
                 translated_text = ' '.join(translated_parts)
-                print(f"Translation successful: {len(translated_text)} chars to {target_language} ({target_lang_code})")
                 
-                # ==== CHANGE START: Add RTL mark for Arabic and Kurdish ====
                 if target_language in ['ar', 'ku']:
-                    # Add Right-to-Left Mark (U+200F) at the beginning for better RTL rendering
                     translated_text = '\u200F' + translated_text
-                    print(f"Added RTL mark for {target_language}")
-                # ==== CHANGE END ====
                 
                 return translated_text
             else:
-                print("Translation returned empty result")
                 return None
         else:
             print(f"Translation API error: {response.status_code}")
@@ -77,147 +339,65 @@ def translate_text(text, target_language):
         print(f"Translation error: {e}")
         return None
 
-def get_prompt_for_category(category):
-    """Get appropriate prompt based on category"""
-    
-    # Base prompt template
-    base_prompt = """You are a professional analysis assistant operating in {CATEGORY} mode.
+def get_news_prompt(country, topic):
+    prompt = f"""You are a professional journalist and news assistant. Generate news about {topic} for {country}.
 
-GENERAL BEHAVIOR (applies to all modes):
-- Give concise, accurate, and actionable explanations.
-- Use clear structure and bullet points when helpful.
-- Avoid unnecessary verbosity.
-- If information is uncertain, explicitly state uncertainty.
-- Never fabricate details.
-- Adjust technical depth based on the category.
-- When appropriate, include safety warnings.
-- Do not assume intent beyond what is provided.
+IMPORTANT INSTRUCTIONS:
+1. Always generate in English first (for quality)
+2. Use this exact structure:
+   HEADLINE: [Clear, factual headline]
+   
+   SUMMARY: [2-3 sentence summary of main story]
+   
+   KEY DEVELOPMENTS:
+   • [Bullet point 1]
+   • [Bullet point 2]
+   • [Bullet point 3]
+   • [Bullet point 4]
+   
+   CONTEXT: [Relevant background information]
+   
+   SOURCES: [Mention credible sources if applicable]
 
-OUTPUT STYLE:
-- Be factual and professional.
-- No roleplay.
-- No moral judgment.
-- No emojis.
-- No unnecessary disclaimers.
-"""
-    
-    # Category-specific rules
-    category_rules = {
-        'medicine': """CATEGORY-SPECIFIC RULES:
+3. Rules:
+   - Focus on latest developments (last 24-48 hours)
+   - Use neutral, factual tone
+   - No sensationalism or bias
+   - If specific country info is limited, provide regional context
+   - Never invent facts or sources
+   - For political topics, use balanced perspective
 
-MEDICINE:
-- Act as a medical information assistant, not a doctor.
-- Identify medicines, medical components, or health-related items.
-- Provide educational information only.
-- Never diagnose, prescribe, or recommend personal treatment.
-- Always include safety notes and advise consulting a licensed professional.""",
-        
-        'industrial': """CATEGORY-SPECIFIC RULES:
+Generate comprehensive news report about {topic} in {country}."""
 
-INDUSTRIAL:
-- Act as an industrial systems and maintenance specialist.
-- Identify equipment, components, and processes.
-- Explain function, common issues, and operational context.
-- Emphasize safety, standards, and proper procedures.
-- Avoid giving unsafe or unauthorized instructions.""",
-        
-        'person': """CATEGORY-SPECIFIC RULES:
+    return prompt
 
-PERSON:
-- Describe visible physical characteristics only.
-- Do not identify real individuals.
-- Do not guess age, ethnicity, religion, health, or personality.
-- Focus on clothing, posture, activity, or observable context.""",
-        
-        'environment': """CATEGORY-SPECIFIC RULES:
-
-ENVIRONMENT:
-- Analyze surroundings, location type, conditions, and visible risks.
-- Highlight environmental or situational safety concerns.
-- Avoid speculation beyond visible evidence.""",
-        
-        'safety': """CATEGORY-SPECIFIC RULES:
-
-SAFETY:
-- Identify hazards, risks, and unsafe conditions.
-- Provide general safety guidance and best practices.
-- Do not replace professional safety inspections or certifications.
-- Use clear warnings when hazards are present.""",
-        
-        'objects': """CATEGORY-SPECIFIC RULES:
-
-OBJECTS:
-- Identify objects and their typical purpose.
-- Explain materials, design, and common uses.
-- Avoid speculation if identification is uncertain.""",
-        
-        'food': """CATEGORY-SPECIFIC RULES:
-
-FOOD:
-- Identify food items and ingredients if visible.
-- Provide general nutritional or culinary information.
-- Avoid medical or dietary prescriptions.
-- Mention allergies or food safety concerns when relevant.""",
-        
-        'general': """CATEGORY-SPECIFIC RULES:
-
-GENERAL:
-- Provide neutral, informative descriptions.
-- Answer clearly based on available information.
-- Avoid assumptions or over-analysis."""
-    }
-    
-    # Get the specific category rules, default to general
-    specific_rules = category_rules.get(category, category_rules['general'])
-    
-    # Combine base prompt with category rules
-    full_prompt = base_prompt.replace("{CATEGORY}", category.upper()) + "\n\n" + specific_rules
-    
-    return full_prompt
-
-@app.route('/analyze', methods=['POST', 'OPTIONS'])
-def analyze_image():
-    if request.method == 'OPTIONS':
-        return jsonify({'status': 'ok'}), 200
-    
+@app.route('/get_news', methods=['POST', 'OPTIONS'])
+def get_news():
+    """Handle news requests - Main endpoint"""
     try:
-        data = request.json
-        if not data or 'image' not in data:
-            return jsonify({'error': 'No image data provided'}), 400
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
 
-        base64_image = data['image']
-        language = data.get('language', 'en')
-        category = data.get('category', 'medicine')
+        country = data.get('country', 'Global')
+        topic = data.get('topic', 'Breaking News')
         original_language = data.get('original_language', 'en')
         needs_translation = data.get('needs_translation', False)
         
-        print(f"Processing request - Category: {category}, Language: {language}, Needs translation: {needs_translation}, Original language: {original_language}")
+        print(f"📰 News request: {country}, {topic}, {original_language}")
         
-        # Always use English for AI analysis
-        prompt = get_prompt_for_category(category)
-        
-        # Add image analysis instruction
-        prompt += "\n\nAnalyze the uploaded image according to the above rules and provide a professional analysis."
-        
-        print(f"Using prompt for category: {category}")
+        # Get news prompt
+        prompt = get_news_prompt(country, topic)
         
         # Call Anthropic API
         message = client.messages.create(
             model="claude-3-haiku-20240307",
-            max_tokens=1500,
-            temperature=0.3,
+            max_tokens=2000,
+            temperature=0.4,
             messages=[
                 {
                     "role": "user",
                     "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": "image/jpeg",
-                                "data": base64_image,
-                            }
-                        },
                         {
                             "type": "text",
                             "text": prompt
@@ -233,86 +413,66 @@ def analyze_image():
             result = {
                 'description': response_text,
                 'success': True,
-                'language': language,
-                'category': category,
+                'language': 'en',
+                'country': country,
+                'topic': topic,
                 'translated_description': None,
-                'is_rtl': False  # ==== CHANGE START: Add RTL flag ====
+                'is_rtl': False
             }
             
-            # Always translate if needed
+            # Translate if needed
             if needs_translation and original_language != 'en':
-                print(f"Translating from English to {original_language}...")
                 translated_text = translate_text(response_text, original_language)
                 if translated_text:
                     result['translated_description'] = translated_text
-                    # ==== CHANGE START: Set RTL flag for Arabic and Kurdish ====
                     if original_language in ['ar', 'ku']:
                         result['is_rtl'] = True
-                    # ==== CHANGE END ====
-                    print(f"Translation successful, length: {len(translated_text)}, RTL: {result['is_rtl']}")
-                else:
-                    print("Translation failed, keeping English description")
-                    # If translation fails, still return English description
             
             return jsonify(result)
         else:
-            return jsonify({'error': 'No analysis received from AI'}), 500
+            return jsonify({'error': 'No news generated by AI'}), 500
 
     except Exception as e:
-        print(f"Error in analyze_image: {e}")
+        print(f"Error: {str(e)}")
         return jsonify({
-            'error': 'Failed to analyze image',
+            'error': 'Failed to fetch news',
             'details': str(e)
         }), 500
 
-@app.route('/categories', methods=['GET'])
-def get_categories():
-    """Endpoint to get supported categories"""
+@app.route('/health', methods=['GET'])
+def health():
+    """Health check endpoint for Railway"""
     return jsonify({
-        'supported_categories': [
-            {'code': 'medicine', 'name': 'Medicine'},
-            {'code': 'industrial', 'name': 'Industrial'},
-            {'code': 'person', 'name': 'Person'},
-            {'code': 'environment', 'name': 'Environment'},
-            {'code': 'safety', 'name': 'Safety'},
-            {'code': 'objects', 'name': 'Objects'},
-            {'code': 'food', 'name': 'Food'},
-            {'code': 'general', 'name': 'General'}
-        ]
-    })
-
-@app.route('/languages', methods=['GET'])
-def get_languages():
-    """Endpoint to get supported languages"""
-    return jsonify({
-        'supported_languages': [
-            {'code': 'en', 'name': 'English (LTR)'},
-            {'code': 'ar', 'name': 'Arabic (RTL)'},
-            {'code': 'ku', 'name': 'Kurdish - Sorani (RTL)'}
-        ]
+        'status': 'healthy',
+        'service': 'AI News Assistant',
+        'version': '1.0'
     })
 
 @app.route('/test', methods=['GET'])
-def test_endpoint():
-    """Test endpoint to check server status"""
+def test():
+    """Test endpoint"""
     return jsonify({
         'status': 'running',
-        'service': 'AnyScan AI Analysis',
-        'translation_supported': True,
-        'translation_services': {
-            'ar': 'Arabic (RTL)',
-            'ku': 'Sorani Kurdish (RTL, ckb code)'
-        },
-        'rtl_languages': ['ar', 'ku'],
-        'categories': ['medicine', 'industrial', 'person', 'environment', 'safety', 'objects', 'food', 'general']
+        'endpoint': '/get_news',
+        'method': 'POST',
+        'parameters': ['country', 'topic', 'original_language', 'needs_translation']
+    })
+
+@app.route('/', methods=['GET'])
+def index():
+    """Root endpoint"""
+    return jsonify({
+        'message': 'AI News Assistant API',
+        'endpoints': {
+            '/get_news': 'POST - Fetch AI-generated news',
+            '/health': 'GET - Health check',
+            '/test': 'GET - Test endpoint'
+        }
     })
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    print(f"\nAnyScan Server starting on port {port}")
-    print(f"Supported categories: Medicine, Industrial, Person, Environment, Safety, Objects, Food, General")
-    print(f"Supported languages: English (LTR), Arabic (RTL), Sorani Kurdish (RTL)")
-    print(f"RTL languages: Arabic, Kurdish")
-    print(f"Translation uses ckb code for Sorani Kurdish")
-    print(f"Server ready to process requests...")
-    app.run(host='0.0.0.0', port=port)
+    port = int(os.environ.get('PORT', 8000))
+    print(f"\n🌍 Server starting on port {port}")
+    print(f"🔗 Health check: /health")
+    print(f"📡 Main endpoint: /get_news")
+    app.run(host='0.0.0.0', port=port, debug=False)

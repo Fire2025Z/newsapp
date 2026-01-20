@@ -1,8 +1,4 @@
-// --------------------------------------------------
-import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'claude_service.dart';
 import 'theme/app_colors.dart';
 
@@ -14,158 +10,111 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  dynamic _image;
-  String? _description;
+  String? _newsContent;
   bool _isLoading = false;
-  String _selectedCategory = 'Medicine';
-  final _picker = ImagePicker();
+  String _selectedCountry = 'Global';
   String _selectedLanguage = 'Kurdish';
-  // ==== CHANGE START: Add variables for text animation and scrolling ====
-  String _displayedText = '';
-  bool _isAnimatingText = false;
-  int _textAnimationIndex = 0;
-  final ScrollController _scrollController = ScrollController();
-  final GlobalKey _resultsKey = GlobalKey();
-  // ==== CHANGE END ====
+  String _selectedTopic = 'Breaking News';
+  String _errorMessage = '';
 
-  final List<String> _languages = ['English', 'Arabic', 'Kurdish'];
-  final List<String> _categories = [
-    'Medicine',
-    'Industrial',
-    'Person',
-    'Environment',
-    'Safety',
-    'Objects',
-    'Food',
-    'General'
+  final List<String> _countries = [
+    'Iraq',
+    'Syria',
+    'Kurdistan Region',
+    'Iran',
+    'Turkey',
+    'Germany',
+    'Sweden',
+    'United States',
+    'All Europe',
+    'Global'
   ];
 
-  @override
-  void dispose() {
-    // ==== CHANGE START: Dispose scroll controller ====
-    _scrollController.dispose();
-    // ==== CHANGE END ====
-    super.dispose();
-  }
+  final List<String> _languages = ['English', 'Arabic', 'Kurdish'];
+  
+  final List<String> _topics = [
+    'Breaking News',
+    'World',
+    'Politics',
+    'Business',
+    'Economy',
+    'Sports',
+    'Technology',
+    'Science',
+    'Health',
+    'Entertainment',
+    'Culture',
+    'Arts',
+    'Local',
+    'Education',
+    'Lifestyle',
+    'Environment',
+    'Climate',
+    'Human Interest',
+    'Gaming',
+    'Social Media',
+    'Startups',
+    'Automotive',
+    'Security',
+    'Defense',
+  ];
 
   void refresh() {
     setState(() {
-      _image = null;
-      _description = null;
+      _newsContent = null;
       _isLoading = false;
-      _selectedCategory = 'Medicine';
+      _selectedCountry = 'Global';
       _selectedLanguage = 'Kurdish';
-      // ==== CHANGE START: Reset animation variables ====
-      _displayedText = '';
-      _isAnimatingText = false;
-      _textAnimationIndex = 0;
-      // ==== CHANGE END ====
+      _selectedTopic = 'Breaking News';
+      _errorMessage = '';
     });
   }
 
-  Future<void> _pickImage(ImageSource source) async {
+  Future<void> _fetchNews() async {
+    if (_isLoading) return;
+    
+    setState(() {
+      _isLoading = true;
+      _newsContent = null;
+      _errorMessage = '';
+    });
+    
     try {
-      final pickedFile = await _picker.pickImage(
-        source: source,
-        maxHeight: 1080,
-        maxWidth: 1920,
-        imageQuality: 85,
-        preferredCameraDevice: CameraDevice.rear,
-      );
-
-      if (pickedFile != null) {
-        setState(() {
-          _image = kIsWeb ? pickedFile : File(pickedFile.path);
-          _isLoading = true;
-          _description = null;
-          // ==== CHANGE START: Reset animation variables ====
-          _displayedText = '';
-          _isAnimatingText = false;
-          _textAnimationIndex = 0;
-          // ==== CHANGE END ====
-        });
-        await _analyzeImage();
-      }
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
-    }
-  }
-
-  Future<void> _analyzeImage() async {
-    try {
-      final description = await ClaudeService().analyzeImage(
-        _image,
+      print('Starting news fetch...');
+      final content = await ClaudeService().getNews(
+        country: _selectedCountry,
         language: _selectedLanguage,
-        category: _selectedCategory,
+        topic: _selectedTopic,
       );
+      
       setState(() {
-        _description = description;
+        _newsContent = content;
         _isLoading = false;
-        // ==== CHANGE START: Start text animation ====
-        _displayedText = '';
-        _isAnimatingText = true;
-        _textAnimationIndex = 0;
-        _startTextAnimation(description);
-        // ==== CHANGE END ====
       });
+      
+      print('News fetch completed successfully');
     } catch (e) {
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
-    }
-  }
-
-  // ==== CHANGE START: Updated text animation method with auto-scroll ====
-  void _startTextAnimation(String fullText) {
-    if (fullText.isEmpty) {
-      _isAnimatingText = false;
-      return;
-    }
-
-    _textAnimationIndex = 0;
-    _displayedText = '';
-
-    Future.doWhile(() async {
-      if (_textAnimationIndex < fullText.length && _isAnimatingText) {
-        await Future.delayed(
-            const Duration(milliseconds: 10)); // Adjust speed here
-
-        setState(() {
-          _displayedText = fullText.substring(0, _textAnimationIndex + 1);
-          _textAnimationIndex++;
-        });
-
-        // Auto-scroll to bottom as text grows - with a small delay to ensure layout
-        await Future.delayed(const Duration(milliseconds: 20));
-
-        if (_scrollController.hasClients) {
-          _scrollController.animateTo(
-            _scrollController.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 50),
-            curve: Curves.easeOut,
-          );
-        }
-
-        return true;
-      } else {
-        _isAnimatingText = false;
-        return false;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = e.toString();
+      });
+      
+      // Show error snackbar
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
       }
-    });
+    }
   }
-  // ==== CHANGE END ====
 
-  // ==== CHANGE START: Helper method to check if language is RTL ====
   bool get _isRTLlanguage {
     return _selectedLanguage == 'Arabic' || _selectedLanguage == 'Kurdish';
   }
-  // ==== CHANGE END ====
 
   @override
   Widget build(BuildContext context) {
@@ -173,7 +122,7 @@ class _HomePageState extends State<HomePage> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text(
-          'Any Scan',
+          'AI News Assistant',
           style: TextStyle(
             fontWeight: FontWeight.w600,
             color: Colors.white,
@@ -190,84 +139,100 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-      body: // ==== CHANGE START: Wrap with SingleChildScrollView and controller ====
-          SingleChildScrollView(
-        controller: _scrollController,
+      body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(20.0),
           child: Column(
             children: [
-              Row(
-                children: [
-                  // Category Selection Card
-                  Expanded(child: _buildCategoryCard()),
-
-                  SizedBox(width: 16),
-                  // Language Selection Card
-                  Expanded(child: _buildLanguageCard()),
-                ],
+              // Country Selection Card
+              _buildSelectionCard(
+                icon: Icons.public,
+                title: 'Select Country',
+                value: _selectedCountry,
+                items: _countries,
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      _selectedCountry = value;
+                    });
+                  }
+                },
               ),
-              // Image Preview Card
-              Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Container(
-                  width: double.infinity,
-                  height: 300,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    color: Colors.grey[50],
-                  ),
-                  child: _image != null
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: kIsWeb
-                              ? Image.network(_image.path, fit: BoxFit.cover)
-                              : Image.file(_image, fit: BoxFit.cover),
-                        )
-                      : Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.camera_alt,
-                                size: 64,
-                                color: Colors.grey[400],
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'No image selected',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                ),
+
+              const SizedBox(height: 16),
+
+              // Language Selection Card
+              _buildSelectionCard(
+                icon: Icons.language,
+                title: 'Select Language',
+                value: _selectedLanguage,
+                items: _languages,
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      _selectedLanguage = value;
+                    });
+                  }
+                },
+              ),
+
+              const SizedBox(height: 16),
+
+              // Topic Selection Card
+              _buildSelectionCard(
+                icon: Icons.category,
+                title: 'Select Topic',
+                value: _selectedTopic,
+                items: _topics,
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      _selectedTopic = value;
+                    });
+                  }
+                },
               ),
 
               const SizedBox(height: 24),
 
-              // Action Buttons
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildActionButton(
-                    icon: Icons.camera_alt,
-                    label: 'Camera',
-                    onPressed: () => _pickImage(ImageSource.camera),
+              // Get News Button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _fetchNews,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 2,
                   ),
-                  const SizedBox(width: 16),
-                  _buildActionButton(
-                    icon: Icons.photo_library,
-                    label: 'Gallery',
-                    onPressed: () => _pickImage(ImageSource.gallery),
-                  ),
-                ],
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation(Colors.white),
+                          ),
+                        )
+                      : const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.newspaper, size: 20),
+                            SizedBox(width: 8),
+                            Text(
+                              'Get AI News',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
               ),
 
               const SizedBox(height: 28),
@@ -287,7 +252,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Analyzing image...',
+                      'Fetching AI news...',
                       style: TextStyle(
                         fontSize: 16,
                         color: Colors.grey[700],
@@ -296,380 +261,292 @@ class _HomePageState extends State<HomePage> {
                     ),
                     SizedBox(height: 8),
                     Text(
-                      'Category: $_selectedCategory • Language: $_selectedLanguage',
+                      'Country: $_selectedCountry • Language: $_selectedLanguage • Topic: $_selectedTopic',
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: 12,
                         color: Colors.grey[600],
                       ),
+                      textAlign: TextAlign.center,
                     ),
-                    // ==== CHANGE START: Show translation info ====
                     if (_selectedLanguage != 'English')
                       Padding(
                         padding: const EdgeInsets.only(top: 8.0),
-                        child: Column(
-                          children: [
-                            Text(
-                              'AI analyzing in English, will translate to $_selectedLanguage',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Colors.grey[500],
-                                fontStyle: FontStyle.italic,
-                              ),
-                            ),
-                            // ==== CHANGE START: Show RTL info ====
-                            if (_isRTLlanguage)
-                              Text(
-                                'Text will display right-to-left (RTL)',
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  color: Colors.grey[400],
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                            // ==== CHANGE END ====
-                          ],
+                        child: Text(
+                          'AI analyzing in English for quality, will translate to $_selectedLanguage',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey[500],
+                            fontStyle: FontStyle.italic,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
                       ),
-                    // ==== CHANGE END ====
                   ],
                 ),
 
-              // Results Section
-              if (_description != null && !_isLoading)
-                // ==== CHANGE START: Add key to results section ====
-                KeyedSubtree(
-                  key: _resultsKey,
-                  child: Card(
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(24.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                children: [
-                                  _getCategoryIcon(_selectedCategory),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Analysis Results',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.primaryColor,
-                                    ),
-                                  ),
-                                ],
+              // Error Message
+              if (_errorMessage.isNotEmpty)
+                Card(
+                  color: Colors.red[50],
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: Colors.red[200]!),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.error, color: Colors.red[700]),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Error',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.red[700],
                               ),
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color:
-                                      AppColors.primaryColor.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      _selectedCategory,
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: AppColors.primaryColor,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    Text(
-                                      _selectedLanguage,
-                                      style: TextStyle(
-                                        fontSize: 9,
-                                        color: AppColors.primaryColor
-                                            .withOpacity(0.8),
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _errorMessage,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.red[600],
                           ),
-                          const SizedBox(height: 16),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[50],
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.grey[200]!,
-                                width: 1,
-                              ),
-                            ),
-                            child: // ==== CHANGE START: Use Directionality for RTL support ====
-                                Directionality(
-                              textDirection: _isRTLlanguage
-                                  ? TextDirection.rtl
-                                  : TextDirection.ltr,
-                              child: _isAnimatingText
-                                  ? SelectableText.rich(
-                                      TextSpan(
-                                        text: _displayedText,
-                                        style: TextStyle(
-                                          fontSize: 15,
-                                          color: Colors.grey[800],
-                                          height: 1.5,
-                                        ),
-                                      ),
-                                    )
-                                  : SelectableText(
-                                      _description!,
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        color: Colors.grey[800],
-                                        height: 1.5,
-                                      ),
-                                    ),
-                            ),
-                            // ==== CHANGE END ====
-                          ),
-                          // ==== CHANGE START: Show animation status with RTL info ====
-                          if (_isAnimatingText)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8.0),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  if (_isRTLlanguage)
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.format_textdirection_r_to_l,
-                                          size: 12,
-                                          color: Colors.grey[500],
-                                        ),
-                                        SizedBox(width: 4),
-                                        Text(
-                                          'RTL Text',
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            color: Colors.grey[500],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        Icons.animation,
-                                        size: 12,
-                                        color: Colors.grey[500],
-                                      ),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        'Animating... ${((_textAnimationIndex / (_description?.length ?? 1)) * 100).toStringAsFixed(0)}%',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          color: Colors.grey[500],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          // ==== CHANGE END ====
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              // ==== CHANGE END ====
+
+              // News Content Section
+              if (_newsContent != null && !_isLoading)
+                Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.newspaper,
+                                    color: AppColors.primaryColor),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'AI News Analysis',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.primaryColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color:
+                                    AppColors.primaryColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Column(
+                                children: [
+                                  Text(
+                                    _selectedCountry,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.primaryColor,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${_selectedTopic} • ${_selectedLanguage}',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: AppColors.primaryColor
+                                          .withOpacity(0.8),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[50],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.grey[200]!,
+                              width: 1,
+                            ),
+                          ),
+                          child: Directionality(
+                            textDirection: _isRTLlanguage
+                                ? TextDirection.rtl
+                                : TextDirection.ltr,
+                            child: SelectableText(
+                              _newsContent!,
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: Colors.grey[800],
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            Icon(
+                              Icons.lightbulb_outline,
+                              size: 14,
+                              color: Colors.grey[500],
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Powered by Claude AI',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
 
               // Empty State
-              if (_description == null && !_isLoading)
+              if (_newsContent == null && !_isLoading && _errorMessage.isEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 40),
                   child: Column(
                     children: [
                       Icon(
-                        Icons.category_outlined,
+                        Icons.newspaper_outlined,
                         size: 64,
                         color: Colors.grey[300],
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'Select category and upload image to get AI analysis',
+                        'Select country, language, and topic',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[700],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'to get AI-powered news from Claude',
                         style: TextStyle(
                           fontSize: 16,
                           color: Colors.grey[600],
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      SizedBox(height: 8),
-                      Text(
-                        'Current: $_selectedCategory • $_selectedLanguage',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[500],
+                      const SizedBox(height: 24),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          children: [
+                            _buildInfoRow(
+                              'Current Selection:',
+                              '$_selectedCountry • $_selectedLanguage • $_selectedTopic',
+                            ),
+                            const SizedBox(height: 8),
+                            _buildInfoRow(
+                              'AI Process:',
+                              'Analyzes in English → Translates to $_selectedLanguage',
+                            ),
+                            const SizedBox(height: 8),
+                            _buildInfoRow(
+                              'Quality Focus:',
+                              'English-first for best news coverage',
+                            ),
+                          ],
                         ),
                       ),
-                      // ==== CHANGE START: Show translation info with RTL info ====
-                      // if (_selectedLanguage != 'English')
-                      //   Padding(
-                      //     padding: const EdgeInsets.only(top: 4.0),
-                      //     child: Column(
-                      //       children: [
-                      //         Text(
-                      //           _selectedLanguage == 'Kurdish'
-                      //               ? 'AI will analyze in English and translate to Sorani Kurdish'
-                      //               : 'AI will analyze in English for better accuracy',
-                      //           style: TextStyle(
-                      //             fontSize: 12,
-                      //             color: Colors.grey[400],
-                      //             fontStyle: FontStyle.italic,
-                      //           ),
-                      //         ),
-                      //         if (_isRTLlanguage)
-                      //           Text(
-                      //             'Text will display right-to-left (RTL)',
-                      //             style: TextStyle(
-                      //               fontSize: 11,
-                      //               color: Colors.grey[400],
-                      //               fontStyle: FontStyle.italic,
-                      //             ),
-                      //           ),
-                      //       ],
-                      //     ),
-                      //   ),
-                      // ==== CHANGE END ====
                     ],
                   ),
                 ),
-              const SizedBox(height: 50),
-              const Padding(
-                padding: EdgeInsets.all(12.0),
-                child: Text(
-                  'Developed by Zinar Mizury',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                    fontWeight: FontWeight.w400,
-                  ),
-                  textAlign: TextAlign.center,
+
+              const SizedBox(height: 40),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryColor.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      'AI News Assistant',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primaryColor,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Country + Language + Topic AI News System',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Developed by Zinar Mizury',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
         ),
       ),
-      // ==== CHANGE END ====
     );
   }
 
-  Widget _buildActionButton({
+  Widget _buildSelectionCard({
     required IconData icon,
-    required String label,
-    required VoidCallback onPressed,
+    required String title,
+    required String value,
+    required List<String> items,
+    required Function(String?) onChanged,
   }) {
-    return ElevatedButton(
-      onPressed: onPressed,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.primaryColor,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        elevation: 2,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 20),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: const TextStyle(
-              fontWeight: FontWeight.w500,
-              fontSize: 15,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCategoryCard() {
-    return // Category Selection Card
-        Card(
-      color: Colors.white,
-      elevation: 3,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(15.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.category, color: AppColors.primaryColor),
-                SizedBox(width: 8),
-                Text(
-                  'Select Category',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey[800],
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              value: _selectedCategory,
-              decoration: InputDecoration(
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppColors.neutralColor),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppColors.neutralColor),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppColors.primaryColor),
-                ),
-              ),
-              items: _categories
-                  .map((category) => DropdownMenuItem(
-                        value: category,
-                        child: Text(category),
-                      ))
-                  .toList(),
-              onChanged: (value) {
-                setState(() {
-                  _selectedCategory = value ?? 'Medicine';
-                });
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLanguageCard() {
     return Card(
       color: Colors.white,
       elevation: 3,
@@ -683,10 +560,10 @@ class _HomePageState extends State<HomePage> {
           children: [
             Row(
               children: [
-                Icon(Icons.language, color: AppColors.primaryColor),
-                SizedBox(width: 8),
+                Icon(icon, color: AppColors.primaryColor),
+                const SizedBox(width: 8),
                 Text(
-                  'Select Language',
+                  title,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -695,12 +572,13 @@ class _HomePageState extends State<HomePage> {
                 ),
               ],
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _selectedLanguage,
+              value: value,
+              isExpanded: true,
               decoration: InputDecoration(
                 contentPadding:
-                    EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide(color: AppColors.neutralColor),
@@ -714,72 +592,46 @@ class _HomePageState extends State<HomePage> {
                   borderSide: BorderSide(color: AppColors.primaryColor),
                 ),
               ),
-              items: _languages
-                  .map((language) => DropdownMenuItem(
-                        value: language,
-                        child: Text(language),
+              items: items
+                  .map((item) => DropdownMenuItem(
+                        value: item,
+                        child: Text(
+                          item,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ))
                   .toList(),
-              onChanged: (value) {
-                setState(() {
-                  _selectedLanguage = value ?? 'Kurdish';
-                });
-              },
+              onChanged: onChanged,
             ),
-            // ==== CHANGE START: Add language info with Sorani Kurdish and RTL note ====
-            SizedBox(height: 8),
-            // Column(
-            //   crossAxisAlignment: CrossAxisAlignment.start,
-            //   children: [
-            //     Text(
-            //       _selectedLanguage == 'English'
-            //           ? 'AI analyzes in English'
-            //           : _selectedLanguage == 'Kurdish'
-            //               ? 'AI analyzes in English, translates to Sorani Kurdish'
-            //               : 'AI analyzes in English, translates to $_selectedLanguage',
-            //       style: TextStyle(
-            //         fontSize: 10,
-            //         color: Colors.grey[600],
-            //         fontStyle: FontStyle.italic,
-            //       ),
-            //     ),
-            //     if (_selectedLanguage == 'Arabic' ||
-            //         _selectedLanguage == 'Kurdish')
-            //       Text(
-            //         'Text will display right-to-left (RTL)',
-            //         style: TextStyle(
-            //           fontSize: 9,
-            //           color: Colors.grey[500],
-            //           fontStyle: FontStyle.italic,
-            //         ),
-            //       ),
-            //   ],
-            // ),
-            // ==== CHANGE END ====
           ],
         ),
       ),
     );
   }
 
-  Icon _getCategoryIcon(String category) {
-    switch (category) {
-      case 'Medicine':
-        return Icon(Icons.medical_services, color: AppColors.primaryColor);
-      case 'Industrial':
-        return Icon(Icons.factory, color: AppColors.primaryColor);
-      case 'Person':
-        return Icon(Icons.person, color: AppColors.primaryColor);
-      case 'Environment':
-        return Icon(Icons.nature, color: AppColors.primaryColor);
-      case 'Safety':
-        return Icon(Icons.security, color: AppColors.primaryColor);
-      case 'Objects':
-        return Icon(Icons.category, color: AppColors.primaryColor);
-      case 'Food':
-        return Icon(Icons.restaurant, color: AppColors.primaryColor);
-      default:
-        return Icon(Icons.analytics, color: AppColors.primaryColor);
-    }
+  Widget _buildInfoRow(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[700],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[600],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

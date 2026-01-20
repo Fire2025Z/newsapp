@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:med_snap/splash_screen.dart';
-import 'home_page.dart';
+import 'splash_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -11,10 +10,19 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Any Scan',
-      home: SplashScreen(),
+      title: 'AI News Assistant',
+      theme: ThemeData(
+        primaryColor: const Color(0xFF2E7D32),
+        scaffoldBackgroundColor: Colors.white,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF2E7D32),
+          elevation: 0,
+          centerTitle: true,
+        ),
+      ),
+      home: const SplashScreen(),
     );
   }
 }
