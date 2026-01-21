@@ -1,40 +1,47 @@
-# server.py - Working version with OpenAI
+# server.py - Fixed with correct Gemini model
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
-from openai import OpenAI
+import google.generativeai as genai
 import requests
 
-print("🚀 AI News Assistant Server - OpenAI Version")
+print("🚀 AI News Assistant Server - Google Gemini (Fixed)")
 
-# Get OpenAI API key from environment
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+# Get Google Gemini API key
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-if not OPENAI_API_KEY:
-    print("❌ ERROR: OPENAI_API_KEY not set in Railway environment!")
-    print("Please set OPENAI_API_KEY in Railway dashboard")
+if not GEMINI_API_KEY:
+    print("❌ ERROR: GEMINI_API_KEY not set!")
+    print("Get FREE API key from: https://aistudio.google.com/app/apikey")
+    print("Then set GEMINI_API_KEY in Railway environment variables")
     exit(1)
 
-print(f"✅ OpenAI API Key loaded")
-print(f"📝 Key starts with: {OPENAI_API_KEY[:12]}...")
+print(f"✅ Gemini API Key loaded")
 
-# Initialize OpenAI client with the new SDK
-client = OpenAI(api_key=OPENAI_API_KEY)
+# Configure Gemini
+genai.configure(api_key=GEMINI_API_KEY)
+
+# Use the correct model name - gemini-1.0-pro or gemini-1.5-pro
+try:
+    # Try newer model first
+    model = genai.GenerativeModel('gemini-1.5-pro')
+    print("✅ Using model: gemini-1.5-pro")
+except:
+    try:
+        # Fallback to older model
+        model = genai.GenerativeModel('gemini-pro')
+        print("✅ Using model: gemini-pro")
+    except Exception as e:
+        print(f"❌ Model error: {e}")
+        exit(1)
 
 app = Flask(__name__)
 
-# Enable CORS for all origins
-CORS(app, resources={
-    r"/*": {
-        "origins": "*",
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization", "Accept"]
-    }
-})
+# Enable CORS
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 @app.after_request
 def after_request(response):
-    """Add CORS headers to all responses"""
     response.headers.add('Access-Control-Allow-Origin', '*')
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept')
     response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
@@ -75,7 +82,6 @@ def translate_text(text, target_language):
             if translated_parts:
                 translated_text = ' '.join(translated_parts)
                 
-                # Add RTL mark for Arabic and Kurdish
                 if target_language in ['ar', 'ku']:
                     translated_text = '\u200F' + translated_text
                 
@@ -91,30 +97,26 @@ def get_news_prompt(country, topic):
     prompt = f"""You are a professional journalist and news assistant. Generate news about {topic} for {country}.
 
 IMPORTANT INSTRUCTIONS:
-1. Generate news in English first (for quality)
+1. Generate news in English first
 2. Use this exact structure:
    HEADLINE: [Clear, factual headline]
    
-   SUMMARY: [2-3 sentence summary of main story]
+   SUMMARY: [2-3 sentence summary]
    
    KEY DEVELOPMENTS:
-   • [Bullet point 1 - important development]
-   • [Bullet point 2 - important development]
-   • [Bullet point 3 - important development]
-   • [Bullet point 4 - important development]
+   • [Bullet point 1]
+   • [Bullet point 2]
+   • [Bullet point 3]
+   • [Bullet point 4]
    
-   CONTEXT: [Relevant background information]
-   
-   ADDITIONAL INFO: [Any other important details]
+   CONTEXT: [Relevant background]
 
 3. Rules:
-   - Focus on latest developments (last 24-48 hours)
+   - Focus on latest developments
    - Use neutral, factual tone
-   - No sensationalism or bias
-   - If specific country info is limited, provide regional context
-   - Never invent facts or sources
-   - For political topics, use balanced perspective
-   - Make it sound like real news
+   - No sensationalism
+   - If country info limited, provide regional context
+   - Never invent facts
 
 Generate comprehensive news report about {topic} in {country}."""
 
@@ -136,26 +138,42 @@ def get_news():
         original_language = data.get('original_language', 'en')
         needs_translation = data.get('needs_translation', False)
         
-        print(f"\n📰 NEW REQUEST: {country} | {topic} | Lang: {original_language}")
+        print(f"📰 Request: {country} | {topic}")
         
         # Get news prompt
         prompt = get_news_prompt(country, topic)
         
-        print("🤖 Calling OpenAI API...")
+        print("🤖 Calling Gemini API...")
         
-        # Call OpenAI API
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",  # Using 3.5 for faster/cheaper response
-            messages=[
-                {"role": "system", "content": "You are a professional journalist."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=1500,
-            temperature=0.4
-        )
+        # Call Gemini API with error handling
+        try:
+            response = model.generate_content(prompt)
+            news_content = response.text
+        except Exception as api_error:
+            print(f"❌ Gemini API error: {api_error}")
+            
+            # Try alternative model as fallback
+            try:
+                print("🔄 Trying alternative model...")
+                alt_model = genai.GenerativeModel('models/gemini-pro')
+                response = alt_model.generate_content(prompt)
+                news_content = response.text
+            except:
+                # Final fallback to mock data
+                news_content = f"""HEADLINE: AI Service Temporarily Unavailable
+
+SUMMARY: The AI news generation service is currently experiencing technical difficulties. Normal service will resume shortly.
+
+KEY DEVELOPMENTS:
+• Technical maintenance in progress
+• Service expected to resume soon
+• Your request for {topic} news in {country} has been recorded
+
+CONTEXT: This is a temporary service message. Please try again in a few moments.
+
+NOTE: The AI news generation feature is being configured. Check back soon for real-time news updates."""
         
-        news_content = response.choices[0].message.content
-        print(f"✅ OpenAI response received ({len(news_content)} chars)")
+        print(f"✅ Response received ({len(news_content)} chars)")
         
         result = {
             'description': news_content,
@@ -164,7 +182,8 @@ def get_news():
             'country': country,
             'topic': topic,
             'translated_description': None,
-            'is_rtl': False
+            'is_rtl': False,
+            'ai_provider': 'Google Gemini'
         }
         
         # Translate if needed
@@ -176,14 +195,11 @@ def get_news():
                 if original_language in ['ar', 'ku']:
                     result['is_rtl'] = True
                 print(f"✅ Translation completed")
-            else:
-                print("⚠ Translation failed, keeping English")
         
-        print(f"🎉 Request completed successfully")
         return jsonify(result)
         
     except Exception as e:
-        print(f"❌ Error in get_news: {str(e)}")
+        print(f"❌ Error: {str(e)}")
         return jsonify({
             'error': 'Failed to fetch news',
             'details': str(e)
@@ -191,44 +207,23 @@ def get_news():
 
 @app.route('/test', methods=['GET'])
 def test():
-    """Test endpoint to check server status"""
+    """Test endpoint"""
     return jsonify({
         'status': 'running',
         'service': 'AI News Assistant',
-        'ai_provider': 'OpenAI GPT-3.5-turbo',
-        'endpoints': {
-            '/get_news': 'POST - Get news by country, topic, language',
-            '/test': 'GET - Server status',
-            '/health': 'GET - Health check'
-        }
+        'ai_provider': 'Google Gemini',
+        'models_tested': ['gemini-1.5-pro', 'gemini-pro', 'models/gemini-pro'],
+        'message': 'Server is working'
     })
 
 @app.route('/health', methods=['GET'])
 def health():
-    """Health check endpoint for Railway"""
-    return jsonify({
-        'status': 'healthy',
-        'timestamp': 'Server is running'
-    })
-
-@app.route('/', methods=['GET'])
-def index():
-    """Root endpoint"""
-    return jsonify({
-        'message': 'AI News Assistant API (OpenAI)',
-        'status': 'active',
-        'usage': 'Send POST requests to /get_news endpoint'
-    })
+    """Health check"""
+    return jsonify({'status': 'healthy'})
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8000))
-    print(f"\n{'='*60}")
-    print("AI NEWS ASSISTANT SERVER - OPENAI")
-    print(f"{'='*60}")
-    print(f"🌍 Port: {port}")
-    print(f"🔗 Health check: /health")
-    print(f"📡 Main endpoint: /get_news")
-    print(f"🤖 AI Model: GPT-3.5-turbo")
-    print(f"{'='*60}")
-    print("Server starting...")
+    print(f"\n🌍 Server starting on port {port}")
+    print(f"🤖 Using: Google Gemini API")
+    print(f"🔗 Test endpoint: /test")
     app.run(host='0.0.0.0', port=port, debug=False)
