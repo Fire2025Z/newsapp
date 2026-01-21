@@ -3,7 +3,9 @@ import 'package:http/http.dart' as http;
 
 class ClaudeService {
   // Use the correct endpoint for news
-  static const String _apiUrl = 'https://medsnap-7gvx.onrender.com/get_news';
+  // static const String _apiUrl = 'https://medsnap-7gvx.onrender.com/get_news';
+  static const String _railWayUrl = 'https://web-production-856b7.up.railway.app/get_news';
+
 
   // Language mapping
   static const Map<String, String> _languageCodes = {
@@ -26,10 +28,10 @@ class ClaudeService {
       final String languageCode = _languageCodes[language] ?? 'en';
       final bool needsTranslation = language != 'English';
 
-      print('Making API request to: $_apiUrl');
+      print('Making API request to: $_railWayUrl');
 
       final response = await http.post(
-        Uri.parse(_apiUrl),
+        Uri.parse(_railWayUrl),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
