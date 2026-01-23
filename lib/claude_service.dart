@@ -1,18 +1,24 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ClaudeService {
-  // Use the correct endpoint for news
-  // static const String _apiUrl = 'https://medsnap-7gvx.onrender.com/get_news';
-  static const String _railWayUrl = 'https://web-production-856b7.up.railway.app/get_news';
-
-
+  // Server URL - Will be set from environment
+  static String? _serverUrl;
+  
   // Language mapping
   static const Map<String, String> _languageCodes = {
     'English': 'en',
     'Arabic': 'ar',
-    'Kurdish': 'ku', // Sorani Kurdish
+    'Kurdish': 'ku',
   };
+
+  // Initialize from environment
+  static Future<void> initialize() async {
+    await dotenv.load(fileName: '.env');
+    _serverUrl = dotenv.get('SERVER_URL', fallback: 'https://your-server.railway.app');
+    print('Initialized ClaudeService with server: $_serverUrl');
+  }
 
   Future<String> getNews({
     required String country,
@@ -21,17 +27,23 @@ class ClaudeService {
   }) async {
     try {
       print('=== Fetching News ===');
+      print('Server URL: $_serverUrl');
       print('Country: $country');
       print('Language: $language');
       print('Topic: $topic');
       
+      // Ensure server URL is set
+      if (_serverUrl == null) {
+        await initialize();
+      }
+
       final String languageCode = _languageCodes[language] ?? 'en';
       final bool needsTranslation = language != 'English';
 
-      print('Making API request to: $_railWayUrl');
+      print('Making API request to: $_serverUrl/get_news');
 
       final response = await http.post(
-        Uri.parse(_railWayUrl),
+        Uri.parse('$_serverUrl/get_news'),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
